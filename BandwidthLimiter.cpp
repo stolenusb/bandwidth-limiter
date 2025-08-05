@@ -10,7 +10,7 @@
 #include "PidMap.h"
 
 constexpr size_t BANDWIDTH_LIMIT_BYTES = 5 * 1024 * 1024;
-constexpr DWORD PID_TO_LIMIT = 11620;
+constexpr DWORD PID_TO_LIMIT = 15164;
 
 struct DownloadSpeed {
     size_t currDownload = 0;
