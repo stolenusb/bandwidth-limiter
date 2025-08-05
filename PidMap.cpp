@@ -22,6 +22,61 @@ void PidMap::refreshPidMap()
     }
 }
 
+DWORD PidMap::extractPid(const PWINDIVERT_IPHDR ip_header, const PWINDIVERT_TCPHDR tcp_header, const PWINDIVERT_UDPHDR udp_header)
+{
+    DWORD pid = 0;
+
+    char srcIpStr[INET_ADDRSTRLEN];
+    char dstIpStr[INET_ADDRSTRLEN];
+    uint16_t srcPort = 0;
+    uint16_t dstPort = 0;
+
+    inet_ntop(AF_INET, &ip_header->SrcAddr, srcIpStr, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &ip_header->DstAddr, dstIpStr, INET_ADDRSTRLEN);
+
+    if (tcp_header) {
+        srcPort = ntohs(tcp_header->SrcPort);
+        dstPort = ntohs(tcp_header->DstPort);
+
+        TcpMapKey sent = {
+            ip_header->SrcAddr,
+            srcPort,
+            ip_header->DstAddr,
+            dstPort
+        };
+
+        TcpMapKey recv = {
+            ip_header->DstAddr,
+            dstPort,
+            ip_header->SrcAddr,
+            srcPort
+        };
+
+        if (mapTCP.count(sent)) {
+            pid = mapTCP[sent];
+            //std::cout << "[PROCESS " << pid << "] " << "(TCP)" << " " << srcIpStr << ":" << srcPort << " -> " << dstIpStr << ":" << dstPort << std::endl;
+        } else if (mapTCP.count(recv)) {
+            pid = mapTCP[recv];
+            //std::cout << "[PROCESS " << pid << "] " << "(TCP)" << " " << dstIpStr << ":" << dstPort << " <- " << srcIpStr << ":" << srcPort << std::endl;
+        }
+    }
+
+    if (udp_header) {
+        srcPort = ntohs(udp_header->SrcPort);
+        dstPort = ntohs(udp_header->DstPort);
+
+        if (mapUDP.count(srcPort)) {
+            pid = mapUDP[srcPort];
+            //std::cout << "[PROCESS " << pid << "] (UDP) " << dstIpStr << ":" << dstPort << " <- " << srcIpStr << ":" << srcPort << std::endl;
+        } else if (mapUDP.count(dstPort)) {
+            pid = mapUDP[dstPort];
+            //std::cout << "[PROCESS " << pid << "] (UDP) " << srcIpStr << ":" << srcPort << " -> " << dstIpStr << ":" << dstPort << std::endl;
+        }
+    }
+
+    return pid;
+}
+
 void PidMap::buildTcpPidMap()
 {
     mapTCP.clear();

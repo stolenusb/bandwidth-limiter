@@ -1,6 +1,7 @@
 #pragma once
 #include <thread>
 #include <map>
+#include "windivert.h"
 
 struct TcpMapKey {
     UINT32 local_addr;
@@ -20,10 +21,12 @@ public:
     PidMap();
 
     void refreshPidMap();
+    DWORD extractPid(const PWINDIVERT_IPHDR ip_header, const PWINDIVERT_TCPHDR tcp_header, const PWINDIVERT_UDPHDR udp_header);
 
+private:
     std::map<TcpMapKey, DWORD> mapTCP;
     std::map<UINT16, DWORD> mapUDP;
-private:
+
     void buildTcpPidMap();
     void buildUdpPidMap();
 
