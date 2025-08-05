@@ -18,5 +18,13 @@
     <ClCompile Include="BandwidthLimiter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="PidMap.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="PidMap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
