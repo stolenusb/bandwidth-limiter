@@ -1,6 +1,6 @@
 #pragma once
 #include <thread>
-#include <map>
+#include <unordered_map>
 #include "windivert.h"
 
 struct TcpMapKey {
@@ -9,9 +9,19 @@ struct TcpMapKey {
     UINT32 rem_addr;
     UINT16 rem_port;
 
-    bool operator<(const TcpMapKey& other) const {
-        return std::tie(local_addr, local_port, rem_addr, rem_port) <
-            std::tie(other.local_addr, other.local_port, other.rem_addr, other.rem_port);
+    bool operator==(const TcpMapKey& other) const {
+        return (local_addr == other.local_addr && local_port == other.local_port && rem_addr == other.rem_addr && rem_port == other.rem_port);
+    }
+};
+
+struct TcpMapKeyHash {
+    std::size_t operator()(const TcpMapKey& key) const {
+        std::size_t h1 = std::hash<UINT32>{}(key.local_addr);
+        std::size_t h2 = std::hash<UINT16>{}(key.local_port);
+        std::size_t h3 = std::hash<UINT32>{}(key.rem_addr);
+        std::size_t h4 = std::hash<UINT16>{}(key.rem_port);
+
+        return h1 ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3);
     }
 };
 
@@ -24,8 +34,8 @@ public:
     DWORD extractPid(const PWINDIVERT_IPHDR ip_header, const PWINDIVERT_TCPHDR tcp_header, const PWINDIVERT_UDPHDR udp_header);
 
 private:
-    std::map<TcpMapKey, DWORD> mapTCP;
-    std::map<UINT16, DWORD> mapUDP;
+    std::unordered_map<TcpMapKey, DWORD, TcpMapKeyHash> mapTCP;
+    std::unordered_map<UINT16, DWORD> mapUDP;
 
     void buildTcpPidMap();
     void buildUdpPidMap();

@@ -1,6 +1,6 @@
+#include <iostream>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
-#include <iostream>
 #include "PidMap.h"
 
 PidMap::PidMap()
@@ -52,25 +52,35 @@ DWORD PidMap::extractPid(const PWINDIVERT_IPHDR ip_header, const PWINDIVERT_TCPH
             srcPort
         };
 
-        if (mapTCP.count(sent)) {
-            pid = mapTCP[sent];
+        auto sentPkt = mapTCP.find(sent);
+        if (sentPkt != mapTCP.end()) {
+            pid = sentPkt->second;
             //std::cout << "[PROCESS " << pid << "] " << "(TCP)" << " " << srcIpStr << ":" << srcPort << " -> " << dstIpStr << ":" << dstPort << std::endl;
-        } else if (mapTCP.count(recv)) {
-            pid = mapTCP[recv];
-            //std::cout << "[PROCESS " << pid << "] " << "(TCP)" << " " << dstIpStr << ":" << dstPort << " <- " << srcIpStr << ":" << srcPort << std::endl;
+        } else {
+            auto recvPkt = mapTCP.find(recv);
+            if (recvPkt != mapTCP.end()) {
+                pid = recvPkt->second;
+                //std::cout << "[PROCESS " << pid << "] " << "(TCP)" << " " << dstIpStr << ":" << dstPort << " <- " << srcIpStr << ":" << srcPort << std::endl;
+            }
         }
+
+        return pid;
     }
 
     if (udp_header) {
         srcPort = ntohs(udp_header->SrcPort);
         dstPort = ntohs(udp_header->DstPort);
 
-        if (mapUDP.count(srcPort)) {
-            pid = mapUDP[srcPort];
+        auto pktSent = mapUDP.find(srcPort);
+        if (pktSent != mapUDP.end()) {
+            pid = pktSent->second;
             //std::cout << "[PROCESS " << pid << "] (UDP) " << dstIpStr << ":" << dstPort << " <- " << srcIpStr << ":" << srcPort << std::endl;
-        } else if (mapUDP.count(dstPort)) {
-            pid = mapUDP[dstPort];
-            //std::cout << "[PROCESS " << pid << "] (UDP) " << srcIpStr << ":" << srcPort << " -> " << dstIpStr << ":" << dstPort << std::endl;
+        } else {
+            auto pktRecv = mapUDP.find(dstPort);
+            if (pktRecv != mapUDP.end()) {
+                pid = pktRecv->second;
+                //std::cout << "[PROCESS " << pid << "] (UDP) " << srcIpStr << ":" << srcPort << " -> " << dstIpStr << ":" << dstPort << std::endl;
+            }
         }
     }
 
@@ -81,9 +91,7 @@ void PidMap::buildTcpPidMap()
 {
     mapTCP.clear();
 
-    PMIB_TCPTABLE_OWNER_PID tcpTable = nullptr;
     DWORD size = 0;
-
     DWORD tcp_result = GetExtendedTcpTable(nullptr, &size, FALSE, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0);
     if (tcp_result != ERROR_INSUFFICIENT_BUFFER) {
         std::cerr << "GetExtendedTcpTable Error (size query): " << tcp_result << std::endl;
@@ -91,7 +99,7 @@ void PidMap::buildTcpPidMap()
         return;
     }
 
-    tcpTable = (PMIB_TCPTABLE_OWNER_PID)malloc(size);
+    PMIB_TCPTABLE_OWNER_PID tcpTable = static_cast<PMIB_TCPTABLE_OWNER_PID>(malloc(size));
     if (!tcpTable)
         return;
 
@@ -103,14 +111,16 @@ void PidMap::buildTcpPidMap()
         return;
     }
 
+    mapTCP.reserve(tcpTable->dwNumEntries);
+    
     for (DWORD i = 0; i < tcpTable->dwNumEntries; i++) {
         auto row = tcpTable->table[i];
 
         TcpMapKey key = {
             row.dwLocalAddr,
-            ntohs((u_short)row.dwLocalPort),
+            ntohs(static_cast<u_short>(row.dwLocalPort)),
             row.dwRemoteAddr,
-            ntohs((u_short)row.dwRemotePort)
+            ntohs(static_cast<u_short>(row.dwRemotePort))
         };
 
         mapTCP[key] = row.dwOwningPid;
@@ -123,9 +133,7 @@ void PidMap::buildUdpPidMap()
 {
     mapUDP.clear();
 
-    PMIB_UDPTABLE_OWNER_PID udpTable = nullptr;
     DWORD size = 0;
-
     DWORD udp_result = GetExtendedUdpTable(nullptr, &size, FALSE, AF_INET, UDP_TABLE_OWNER_PID, 0);
     if (udp_result != ERROR_INSUFFICIENT_BUFFER) {
         std::cerr << "GetExtendedUdpTable Error (size query): " << udp_result << std::endl;
@@ -133,7 +141,7 @@ void PidMap::buildUdpPidMap()
         return;
     }
 
-    udpTable = (PMIB_UDPTABLE_OWNER_PID)malloc(size);
+    PMIB_UDPTABLE_OWNER_PID udpTable = static_cast<PMIB_UDPTABLE_OWNER_PID>(malloc(size));
     if (!udpTable)
         return;
 
@@ -145,10 +153,12 @@ void PidMap::buildUdpPidMap()
         return;
     }
 
+    mapUDP.reserve(udpTable->dwNumEntries);
+
     for (DWORD i = 0; i < udpTable->dwNumEntries; i++) {
         auto row = udpTable->table[i];
 
-        UINT16 key = ntohs((u_short)row.dwLocalPort);
+        UINT16 key = ntohs(static_cast<u_short>(row.dwLocalPort));
         mapUDP[key] = row.dwOwningPid;
     }
 
